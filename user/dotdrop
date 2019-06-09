@@ -2,6 +2,16 @@
 
 # This script is a convenience wrapper for dotdrop. It can be executed from
 # any dorectory, and will run the dotdrop command for user/root, or for both.
+#
+# Arguments:
+#   - $1: the user dotdrop will be executed for. Can be one of 'user', 'root'
+#         or 'both'.
+#   - $2: the dotdrop command that will be executed.
+#   - $3+: options and arguments for dotdrop.
+#
+# Environment:
+#   - $DOTFILES_HOME: the directory where Pipfile and dotdrop.sh are located.
+#                     Defaults to $HOME/Files/Programming/sys/dotfiles.
 
 #######################################
 # Variables
@@ -16,6 +26,23 @@ DOTFILES_HOME="${DOTFILES_HOME:-$HOME/Files/Programming/sys/dotfiles}"
 WHO="$1"
 CMD="$2"
 shift 2
+
+WRONG_USER=''
+case "$WHO" in
+    user|root|both)
+        ;;
+    '')
+        WRONG_USER='no user'
+        ;;
+    *)
+        WRONG_USER="'$WHO' user"
+        ;;
+esac
+[ -n "$WRONG_USER" ] && {
+    echo >&2 "Error: $WRONG_USER given. Muse be one of 'user', 'root' or" \
+        "'both'"
+    exit 1
+}
 
 #######################################
 # Executing dotdrop
