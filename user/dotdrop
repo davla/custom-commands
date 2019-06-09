@@ -32,6 +32,7 @@ for ARG in "$@"; do
     case "$CURR_ARG" in
         'user')
             WHO="$ARG"
+            CURR_ARG=''
             continue
             ;;
     esac
