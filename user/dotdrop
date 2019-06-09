@@ -44,6 +44,13 @@ esac
     exit 1
 }
 
+# Relative paths need to be resolved before cd-ing, otherwise they won't work
+ARGS=()
+for ARG in "$@"; do
+    [ -e "$ARG" ] && ARG="$(readlink -f "$ARG")"
+    ARGS+=("$ARG")
+done
+
 #######################################
 # Executing dotdrop
 #######################################
@@ -54,13 +61,14 @@ cd $DOTFILES_HOME || exit
 
 case "$WHO" in
     user|both)
-        pipenv run bash dotdrop.sh "$CMD" -c 'config-user.yaml' "$@"
+        pipenv run bash dotdrop.sh "$CMD" -c 'config-user.yaml' "${ARGS[@]}"
         ;;
 esac
 
 case "$WHO" in
     root|both)
-        sudo pipenv run bash dotdrop.sh "$CMD" -c 'config-root.yaml' "$@"
+        sudo -E pipenv run bash dotdrop.sh "$CMD" -c 'config-root.yaml' \
+            "${ARGS[@]}"
         ;;
 esac
 
