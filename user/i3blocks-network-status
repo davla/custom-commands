@@ -1,17 +1,26 @@
 #!/bin/sh
 
 # This script is meant to be used in i3blocks. It displays the network status
-# in a super compact way, that is a single colored letter. For cabled
-# connections it only displays up/down status in different colors. For wireless
-# ones it also shows signal strength, again color-coding intervals.
+# in a super compact way, that is a colored label. For cabled connections it
+# only displays up/down status in different colors. For wireless ones it also
+# shows signal strength, again color-coding intervals.
 #
 # Arguments:
-#   - $1: The connection whose status will be displayed. Can be one of
-#         - ethernet/cable
-#         - wireless/wifi
-#         Systems with more than one interface per type are not supported.
-#   - $2: The letter to be displayed. Optional defaults to 'E' for ethernet
-#         connections, and to 'W' for wireless.
+#   - -i INTERFACE  The connection whose status will be displayed. Can be one
+#                   of:
+#                       - ethernet/cable
+#                       - wireless/wifi
+#                   Systems with more than one interface per type are not
+#                   supported.
+#
+#   - -l LABEL      The label to be displayed. Optional, defaults to 'E' for
+#                   cabled connections, and to 'W' for wireless.
+#
+#   - -g LEVEL      The level above which wireless connection signal is
+#                   considered good.
+#
+#   - -m LEVEL      The level above which wireless connection signal is
+#                   considered medium.
 
 #######################################
 # Variables
@@ -26,13 +35,45 @@ MEDIUM_COLOR="#FFFF00"
 # Input processing
 #######################################
 
-INTERFACE="$(echo "$1" | tr '[:upper:]' '[:lower:]')"
-LETTER="$2"
+GOOD_LEVEL='80'
+INTERFACE=''
+MEDIUM_LEVEL='40'
+LETTER=''
+
+while getopts 'g:i:l:m:' OPTION; do
+    case "$OPTION" in
+        'g')
+            GOOD_LEVEL="$OPTARG"
+            ;;
+
+        'i')
+            INTERFACE="$(echo "$OPTARG" | tr '[:upper:]' '[:lower:]')"
+            ;;
+
+        'l')
+            LETTER="$OPTARG"
+            ;;
+
+        'm')
+            MEDIUM_LEVEL="$OPTARG"
+            ;;
+
+        *)  # getopts has already printed an error message
+            exit 1
+            ;;
+    esac
+done
 
 # Sanitizing $INTERFACE
 case "$INTERFACE" in
     'ethernet'|'cable'|'wireless'|'wifi')
         ;;
+
+    '')
+        echo >&2 'No interface specified!'
+        exit 1
+        ;;
+
     *)
         echo >&2 "Error: $INTERFACE unknown!"
         exit 1
@@ -95,9 +136,9 @@ case "$INTERFACE" in
             gsub("-", "", $4)
             print int($4)
         }' | while read LEVEL; do
-                if [ "$LEVEL" -gt 79 ]; then
+                if [ "$LEVEL" -ge "$GOOD_LEVEL" ]; then
                     echo "$GOOD_COLOR"
-                elif [ "$LEVEL" -gt 39 ]; then
+                elif [ "$LEVEL" -ge "$MEDIUM_LEVEL" ]; then
                     echo "$MEDIUM_COLOR"
                 else
                     echo "$BAD_COLOR"
