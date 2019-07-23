@@ -1,0 +1,108 @@
+#!/bin/sh
+
+# This script is meant to be used in i3blocks. It displays the network status
+# in a super compact way, that is a single colored letter. For cabled
+# connections it only displays up/down status in different colors. For wireless
+# ones it also shows signal strength, again color-coding intervals.
+#
+# Arguments:
+#   - $1: The connection whose status will be displayed. Can be one of
+#         - ethernet/cable
+#         - wireless/wifi
+#         Systems with more than one interface per type are not supported.
+#   - $2: The letter to be displayed. Optional defaults to 'E' for ethernet
+#         connections, and to 'W' for wireless.
+
+#######################################
+# Variables
+#######################################
+
+BAD_COLOR="#FF0000"
+DOWN_COLOR="#666666"
+GOOD_COLOR="#00FF00"
+MEDIUM_COLOR="#FFFF00"
+
+#######################################
+# Input processing
+#######################################
+
+INTERFACE="$(echo "$1" | tr '[:upper:]' '[:lower:]')"
+LETTER="$2"
+
+# Sanitizing $INTERFACE
+case "$INTERFACE" in
+    'ethernet'|'cable'|'wireless'|'wifi')
+        ;;
+    *)
+        echo >&2 "Error: $INTERFACE unknown!"
+        exit 1
+        ;;
+esac
+
+# $LETTER defaults
+[ -z "$LETTER" ] && case "$INTERFACE" in
+    'ethernet'|'cable')
+        LETTER='E'
+        ;;
+    'wireless'|'wifi')
+        LETTER='W'
+        ;;
+esac
+
+#######################################
+# i3blocks output
+#######################################
+
+# full_text
+echo "$LETTER"
+# short_text
+echo "$LETTER"
+
+# color
+case "$INTERFACE" in
+
+    'ethernet'|'cable')
+
+        #######################################
+        # Ethernet
+        #######################################
+
+        # On new XXX, ethernet interfaces start with 'en'
+        ip link show | awk "match(\$2, /^en/) {
+            print \$9 == \"UP\" ? \"$GOOD_COLOR\" : \"$DOWN_COLOR\"
+        }"
+        ;;
+
+    'wireless'|'wifi')
+
+        #######################################
+        # Wireless
+        #######################################
+
+        # On new XXX, wireless interfaces start with 'wl'
+        IF_DATA="$(ip link show | awk 'match($2, /^wl/) {print $2}' \
+            | xargs -i grep '{}' /proc/net/wireless)"
+
+        # If the interface is not found in /proc/net/wireless, then the
+        # interface is down
+        [ -z "$IF_DATA" ] && {
+            echo "$DOWN_COLOR"
+            exit
+        }
+
+        # The fourth field (level) can be negative, since it's in dBm
+        echo "$IF_DATA" | awk '{
+            gsub("-", "", $4)
+            print int($4)
+        }' | while read LEVEL; do
+                if [ "$LEVEL" -gt 79 ]; then
+                    echo "$GOOD_COLOR"
+                elif [ "$LEVEL" -gt 39 ]; then
+                    echo "$MEDIUM_COLOR"
+                else
+                    echo "$BAD_COLOR"
+                fi
+                exit
+            done
+        ;;
+esac
