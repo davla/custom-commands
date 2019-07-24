@@ -16,34 +16,110 @@
 #   - -l LABEL      The label to be displayed. Optional, defaults to 'E' for
 #                   cabled connections, and to 'W' for wireless.
 #
-#   - -g LEVEL      The level above which wireless connection signal is
-#                   considered good.
+#   - -g LEVEL      The absolute dBm value above which wireless connection
+#                   signal is considered good. Defaults to 80.
 #
-#   - -m LEVEL      The level above which wireless connection signal is
-#                   considered medium.
+#   - -h            Display the help message.
+#
+#   - -m LEVEL      The absolute dBm value above which wireless connection
+#                   signal is considered medium. Defaults to 40.
+#
+#   - -B color      The label color for bad wireless connections. Defaults to
+#                   #FF0000 (red).
+#
+#   - -D color      The label color for down connections. Defaults to #666666
+#                   (gray).
+#
+#   - -G color      The label color for good wireless connections and up
+#                   cabled connections. Defaults to #00FF00 (green).
+#
+#   - -M color      The label color for medium wireless connections. Defaults
+#                   to #FFFF00 (yellow).
 
 #######################################
 # Variables
 #######################################
 
+# Colors
 BAD_COLOR="#FF0000"
 DOWN_COLOR="#666666"
 GOOD_COLOR="#00FF00"
 MEDIUM_COLOR="#FFFF00"
 
+# Levels
+GOOD_LEVEL='80'
+MEDIUM_LEVEL='40'
+
+# Misc
+INTERFACE=''
+LETTER=''
+
 #######################################
 # Input processing
 #######################################
 
-GOOD_LEVEL='80'
-INTERFACE=''
-MEDIUM_LEVEL='40'
-LETTER=''
-
-while getopts 'g:i:l:m:' OPTION; do
+while getopts 'B:D:G:M:g:hi:l:m:' OPTION; do
     case "$OPTION" in
+        'B')
+            BAD_COLOR="$OPTARG"
+            ;;
+
+        'D')
+            DOWN_COLOR="$OPTARG"
+            ;;
+
+        'G')
+            GOOD_COLOR="$OPTARG"
+            ;;
+
+        'M')
+            MEDIUM_COLOR="$OPTARG"
+            ;;
+
         'g')
             GOOD_LEVEL="$OPTARG"
+            ;;
+
+        'h')
+            cat <<EOF
+Usage: $(basename "$0") -i INTERFACE [-l LABEL] [-g LEVEL] [-m LEVEL]
+    [-B COLOR] [-M COLOR] [-G COLOR] [-D COLOR]
+
+Displays i3blocks network status via a colored label. Up/down status for cabled
+connections, signal strength for wireless ones.
+
+Options:
+    -i INTERFACE    The connection whose status will be displayed. Can be one
+                    of:
+                        - ethernet/cable
+                        - wireless/wifi
+                    Systems with more than one interface per type are not
+                    supported.
+
+    -l LABEL        The label to be displayed. Optional, defaults to 'E' for
+                    cabled connections, and to 'W' for wireless.
+
+    -g LEVEL        The absolute dBm value above which wireless connection
+                    signal is considered good. Defaults to 80.
+
+    -h              Display this help message.
+
+    -m LEVEL        The absolute dBm value above which wireless connection
+                    signal is considered medium. Defaults to 40.
+
+    -B COLOR        The label color for bad wireless connections. Defaults to
+                    #FF0000 (red).
+
+    -D COLOR        The label color for down connections. Defaults to #666666
+                    (gray).
+
+    -G COLOR        The label color for good wireless connections and up cabled
+                    connections. Defaults to #00FF00 (green).
+
+    -M COLOR        The label color for medium wireless connections. Defaults
+                    to #FFFF00 (yellow).
+EOF
+            exit
             ;;
 
         'i')
