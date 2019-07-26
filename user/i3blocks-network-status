@@ -1,20 +1,30 @@
 #!/bin/sh
 
 # This script is meant to be used in i3blocks. It displays the network status
-# in a super compact way, that is a colored label. For cabled connections it
+# in a super compact way, that is a colored label. For cabled interfaces it
 # only displays up/down status in different colors. For wireless ones it also
 # shows signal strength, again color-coding intervals.
 #
 # Arguments:
-#   - -i INTERFACE  The connection whose status will be displayed. Can be one
-#                   of:
+#   - -i INTERFACE  The interface whose status will be displayed. these
+#                   constant values are available:
+#                       - ethernet/cable - for the ethernet interface listed
+#                           first in `ip link show` command..
+#                       - wireless/wifi - for the wireless interface listed
+#                           first in `ip link show` command.
+#
+#   - -t TYPE       The type of the connection. One of:
 #                       - ethernet/cable
 #                       - wireless/wifi
-#                   Systems with more than one interface per type are not
-#                   supported.
+#                   The type is detected automatically for the following
+#                   interface names:
+#                       - ethernet, cable, en*, eth* --> cable
+#                       - wireless, wifi, wl*, wlan* --> wireless
 #
-#   - -l LABEL      The label to be displayed. Optional, defaults to 'E' for
-#                   cabled connections, and to 'W' for wireless.
+#   - -l LABEL      The label to be displayed. Optional, the default varies
+#                   based on the detected connection type:
+#                       - ethernet - E
+#                       - wireless - W
 #
 #   - -g LEVEL      The absolute dBm value above which wireless connection
 #                   signal is considered good. Defaults to 80.
@@ -52,13 +62,14 @@ MEDIUM_LEVEL='40'
 
 # Misc
 INTERFACE=''
+INTERFACE_TYPE=''
 LETTER=''
 
 #######################################
 # Input processing
 #######################################
 
-while getopts 'B:D:G:M:g:hi:l:m:' OPTION; do
+while getopts 'B:D:G:M:g:hi:l:m:t:' OPTION; do
     case "$OPTION" in
         'B')
             BAD_COLOR="$OPTARG"
@@ -89,15 +100,25 @@ Displays i3blocks network status via a colored label. Up/down status for cabled
 connections, signal strength for wireless ones.
 
 Options:
-    -i INTERFACE    The connection whose status will be displayed. Can be one
-                    of:
+    -i INTERFACE    The interface whose status will be displayed. these
+                    constant values are available:
+                        - ethernet/cable - for the ethernet interface listed
+                            first in `ip link show` command..
+                        - wireless/wifi - for the wireless interface listed
+                            first in `ip link show` command.
+
+    -t TYPE         The type of the connection. One of:
                         - ethernet/cable
                         - wireless/wifi
-                    Systems with more than one interface per type are not
-                    supported.
+                    The type is detected automatically for the following
+                    interface names:
+                        - ethernet, cable, en*, eth* - cable
+                        - wireless, wifi, wl*, wlan* - wireless
 
-    -l LABEL        The label to be displayed. Optional, defaults to 'E' for
-                    cabled connections, and to 'W' for wireless.
+    -l LABEL        The label to be displayed. Optional, the default varies
+                    based on the detected connection type:
+                        - ethernet - E
+                        - wireless - W
 
     -g LEVEL        The absolute dBm value above which wireless connection
                     signal is considered good. Defaults to 80.
@@ -123,7 +144,9 @@ EOF
             ;;
 
         'i')
-            INTERFACE="$(echo "$OPTARG" | tr '[:upper:]' '[:lower:]')"
+            INTERFACE="$OPTARG"
+            NORMALIZED_INTERFACE="$(echo "$INTERFACE" \
+                | tr '[:upper:]' '[:lower:]')"
             ;;
 
         'l')
@@ -134,6 +157,10 @@ EOF
             MEDIUM_LEVEL="$OPTARG"
             ;;
 
+        't')
+            INTERFACE_TYPE="$OPTARG"
+            ;;
+
         *)  # getopts has already printed an error message
             exit 1
             ;;
@@ -141,7 +168,7 @@ EOF
 done
 
 # Sanitizing $INTERFACE
-case "$INTERFACE" in
+case "$NORMALIZED_INTERFACE" in
     'ethernet'|'cable'|'wireless'|'wifi')
         ;;
 
@@ -151,18 +178,69 @@ case "$INTERFACE" in
         ;;
 
     *)
-        echo >&2 "Error: $INTERFACE unknown!"
-        exit 1
+        ip link show | grep -w "$INTERFACE" > /dev/null 2> /dev/null || {
+            echo >&2 "Interface '$INTERFACE' unknown!"
+            exit 1
+        }
         ;;
 esac
 
+#######################################
+# Guessing interface type
+#######################################
+
+[ -z "$INTERFACE_TYPE" ] && case "$NORMALIZED_INTERFACE" in
+
+    'ethernet'|'cable'|eth*)
+        INTERFACE_TYPE='cable'
+        ;;
+
+    'wireless'|'wifi'|wlan*)
+        INTERFACE_TYPE='wireless'
+        ;;
+
+    *)
+        if echo "$INTERFACE" | grep '^en' > /dev/null 2> /dev/null; then
+            INTERFACE_TYPE='cable'
+        elif echo "$INTERFACE" | grep '^wl' > /dev/null 2> /dev/null; then
+            INTERFACE_TYPE='wireless'
+        else
+            echo >&2 "Cannot detect interface type for interface '$INTERFACE'!"
+            exit 1
+        fi
+        ;;
+esac
+
+#######################################
+# Interface type-dependent variables
+#######################################
+
 # $LETTER defaults
-[ -z "$LETTER" ] && case "$INTERFACE" in
+[ -z "$LETTER" ] && case "$INTERFACE_TYPE" in
+
     'ethernet'|'cable')
         LETTER='E'
         ;;
+
     'wireless'|'wifi')
         LETTER='W'
+        ;;
+esac
+
+# Interface regex for grepping in ip output
+case "$INTERFACE_TYPE" in
+    'ethernet'|'cable')
+        # On new XXX, ethernet interfaces start with 'en'
+        INTERFACE_REGEX='^(en|eth)'
+        ;;
+
+    'wireless'|'wifi')
+        # On new XXX, wireless interfaces start with 'wl'
+        INTERFACE_REGEX='^(wl|wlan)'
+        ;;
+
+    *)
+        INTERFACE_REGEX="$INTERFACE"
         ;;
 esac
 
@@ -176,29 +254,18 @@ echo "$LETTER"
 echo "$LETTER"
 
 # color
-case "$INTERFACE" in
+case "$INTERFACE_TYPE" in
 
     'ethernet'|'cable')
-
-        #######################################
-        # Ethernet
-        #######################################
-
-        # On new XXX, ethernet interfaces start with 'en'
-        ip link show | awk "match(\$2, /^en/) {
+        ip link show | awk "match(\$2, /$INTERFACE_REGEX/) {
             print \$9 == \"UP\" ? \"$GOOD_COLOR\" : \"$DOWN_COLOR\"
         }"
         ;;
 
     'wireless'|'wifi')
-
-        #######################################
-        # Wireless
-        #######################################
-
-        # On new XXX, wireless interfaces start with 'wl'
-        IF_DATA="$(ip link show | awk 'match($2, /^wl/) {print $2}' \
-            | xargs -i grep '{}' /proc/net/wireless)"
+        IF_DATA="$(ip link show | awk "match(\$2, /$INTERFACE_REGEX/) {
+                print \$2
+            }" | xargs -i grep '{}' /proc/net/wireless)"
 
         # If the interface is not found in /proc/net/wireless, then the
         # interface is down
