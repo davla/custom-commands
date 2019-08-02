@@ -274,11 +274,10 @@ case "$INTERFACE_TYPE" in
             exit
         }
 
-        # The fourth field (level) can be negative, since it's in dBm
-        echo "$IF_DATA" | awk '{
-            gsub("-", "", $4)
-            print int($4)
-        }' | while read LEVEL; do
+        # The third field is the link quality. The scaling factor adjusts it to
+        # be claser to the one nmcli displays
+        echo "$IF_DATA" | awk '{ print int($3 * 1.15) }' \
+            | while read LEVEL; do
                 if [ "$LEVEL" -ge "$GOOD_LEVEL" ]; then
                     echo "$GOOD_COLOR"
                 elif [ "$LEVEL" -ge "$MEDIUM_LEVEL" ]; then
@@ -286,7 +285,6 @@ case "$INTERFACE_TYPE" in
                 else
                     echo "$BAD_COLOR"
                 fi
-                exit
             done
         ;;
 esac
